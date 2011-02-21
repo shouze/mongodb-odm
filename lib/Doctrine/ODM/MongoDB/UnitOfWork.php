@@ -563,11 +563,14 @@ class UnitOfWork implements PropertyChangedListener
                         $this->scheduleOrphanRemoval($orgValue);
                     }
                     $changeSet[$propName] = array($orgValue, $actualValue);
-                } else if (isset($class->fieldMappings[$propName]['reference']) && $class->fieldMappings[$propName]['type'] === 'one' && $orgValue !== $actualValue) {
+                } else if (isset($class->fieldMappings[$propName]['reference']) && $class->fieldMappings[$propName]['type'] === 'one' && $class->fieldMappings[$propName]['isOwningSide'] && $orgValue !== $actualValue) {
                     $changeSet[$propName] = array($orgValue, $actualValue);
                 } else if ($isChangeTrackingNotify) {
                     continue;
                 } else if (isset($class->fieldMappings[$propName]['type']) && $class->fieldMappings[$propName]['type'] === 'many' && $orgValue !== $actualValue) {
+                    if (isset($class->fieldMappings[$propName]['reference']) && $class->fieldMappings[$propName]['isInverseSide']) {
+                        continue; // ignore inverse side
+                    }
                     $changeSet[$propName] = array($orgValue, $actualValue);
                     if ($orgValue instanceof PersistentCollection) {
                         $this->collectionDeletions[] = $orgValue;
@@ -661,7 +664,7 @@ class UnitOfWork implements PropertyChangedListener
      */
     private function computeAssociationChanges($parentDocument, $mapping, $value)
     {
-        if ($value instanceof PersistentCollection && $value->isDirty()) {
+        if ($value instanceof PersistentCollection && $value->isDirty() && $mapping['isOwningSide']) {
             $owner = $value->getOwner();
             $className = get_class($owner);
             $class = $this->dm->getClassMetadata($className);
@@ -1116,7 +1119,7 @@ class UnitOfWork implements PropertyChangedListener
     private function addDependencies(ClassMetadata $class, $calc)
     {
         foreach ($class->fieldMappings as $mapping) {
-            if (isset($mapping['reference']) && isset($mapping['targetDocument'])) {
+            if ($mapping['isOwningSide'] && isset($mapping['reference']) && isset($mapping['targetDocument'])) {
                 $targetClass = $this->dm->getClassMetadata($mapping['targetDocument']);
                 if ( ! $calc->hasClass($targetClass->name)) {
                     $calc->addClass($targetClass);
