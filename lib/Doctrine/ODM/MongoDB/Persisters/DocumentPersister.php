@@ -552,28 +552,26 @@ class DocumentPersister
     {
         $mapping = $collection->getMapping();
         $owner = $collection->getOwner();
-        $class = $this->dm->getClassMetadata($mapping['targetDocument']);
-        $mongoCollection = $this->dm->getDocumentCollection($mapping['targetDocument']);
+        $ownerClass = $this->dm->getClassMetadata(get_class($owner));
         $criteria = array_merge(
-            array($mapping['mappedBy'].'.'.$this->cmd.'id' => $class->getIdentifierObject($owner)),
+            array($mapping['mappedBy'].'.'.$this->cmd.'id' => $ownerClass->getIdentifierObject($owner)),
             $mapping['criteria']
         );
-        $cursor = $mongoCollection->find($criteria);
+        $qb = $this->dm->createQueryBuilder($mapping['targetDocument'])
+            ->setQueryArray($criteria);
+
         if ($mapping['sort']) {
-            $cursor->sort($mapping['sort']);
+            $qb->sort($mapping['sort']);
         }
         if ($mapping['limit']) {
-            $cursor->limit($mapping['limit']);
+            $qb->limit($mapping['limit']);
         }
         if ($mapping['skip']) {
-            $cursor->skip($mapping['skip']);
+            $qb->skip($mapping['skip']);
         }
-        foreach ($cursor as $documentData) {
-            $document = $this->dm->getReference($class->name, (string) $documentData['_id']);
-            if ($document instanceof Proxy && ! $document->__isInitialized__) {
-                $data = $this->hydratorFactory->hydrate($document, $documentData);
-                $this->uow->setOriginalDocumentData($document, $data);
-            }
+        $query = $qb->getQuery();
+        $cursor = $query->execute();
+        foreach ($cursor as $document) {
             $collection->add($document);
         }
     }
@@ -693,7 +691,7 @@ class DocumentPersister
                 foreach ($value as $k => $v) {
                     if ($k[0] === '$' && is_array($v)) {
                         foreach ($v as $k2 => $v2) {
-                            $v[$k2] = $this->class->getDatabaseIdentifierValue($v2);
+                            $value[$k][$k2] = $this->class->getDatabaseIdentifierValue($v2);
                         }
                     } else {
                         $value[$k] = $this->class->getDatabaseIdentifierValue($v);
