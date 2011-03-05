@@ -277,14 +277,14 @@ class DocumentManager implements ObjectManager
      */
     public function getDocumentDatabase($className)
     {
+        if (isset($this->documentDatabases[$className])) {
+            return $this->documentDatabases[$className];
+        }
         $metadata = $this->metadataFactory->getMetadataFor($className);
         $db = $metadata->getDatabase();
         $db = $db ? $db : $this->config->getDefaultDB();
         $db = $db ? $db : 'doctrine';
-        $db = sprintf('%s%s', $this->config->getEnvironmentPrefix(), $db);
-        if ( ! isset($this->documentDatabases[$className])) {
-            $this->documentDatabases[$className] = $this->connection->selectDatabase($db);
-        }
+        $this->documentDatabases[$className] = $this->connection->selectDatabase($db);
         return $this->documentDatabases[$className];
     }
 
@@ -307,7 +307,6 @@ class DocumentManager implements ObjectManager
     public function getDocumentCollection($className)
     {
         $metadata = $this->metadataFactory->getMetadataFor($className);
-        $db = $metadata->getDatabase();
         $collection = $metadata->getCollection();
 
         if ( ! $collection) {
@@ -619,15 +618,6 @@ class DocumentManager implements ObjectManager
         return $this->config;
     }
 
-    public function formatDBName($dbName)
-    {
-        return sprintf('%s%s%s',
-            $this->config->getDatabasePrefix(),
-            $dbName,
-            $this->config->getDatabaseSuffix()
-        );
-    }
-
     public function getClassNameFromDiscriminatorValue(array $mapping, $value)
     {
         $discriminatorField = isset($mapping['discriminatorField']) ? $mapping['discriminatorField'] : '_doctrine_class_name';
@@ -649,13 +639,14 @@ class DocumentManager implements ObjectManager
      */
     public function createDBRef($document, array $referenceMapping = null)
     {
-        $class = $this->getClassMetadata(get_class($document));
+        $className = get_class($document);
+        $class = $this->getClassMetadata($className);
         $id = $this->unitOfWork->getDocumentIdentifier($document);
 
         $dbRef = array(
             $this->cmd . 'ref' => $class->getCollection(),
             $this->cmd . 'id'  => $class->getDatabaseIdentifierValue($id),
-            $this->cmd . 'db'  => $class->getDatabase()
+            $this->cmd . 'db'  => $this->getDocumentDatabase($className)->getName()
         );
 
         // add a discriminator value if the referenced document is not mapped explicitely to a targetDocument

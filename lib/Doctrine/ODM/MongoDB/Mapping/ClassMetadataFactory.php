@@ -267,9 +267,6 @@ class ClassMetadataFactory implements \Doctrine\Common\Persistence\Mapping\Class
                 $class->setCollection($parent->getCollection());
             }
 
-            $db = $class->getDatabase() ?: $this->config->getDefaultDB();
-            $class->setDatabase($this->dm->formatDBName($db));
-
             $class->setParentClasses($visited);
 
             if ($this->evm->hasListeners(Events::loadClassMetadata)) {
